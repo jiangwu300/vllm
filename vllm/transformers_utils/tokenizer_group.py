@@ -10,6 +10,9 @@ from vllm.transformers_utils.tokenizer import (AnyTokenizer, encode_tokens,
                                                get_lora_tokenizer_async,
                                                get_tokenizer)
 from vllm.utils import LRUCache
+import subprocess
+import os
+from urllib.parse import urlparse
 
 
 class TokenizerGroup:
@@ -104,10 +107,48 @@ class TokenizerGroup:
         else:
             return self.lora_tokenizers[lora_request.lora_int_id]
 
+def download_tokenizer_files(s3_uri: str, local_dir: str):
+    """
+    Download tokenizer-related files from an S3 directory to a local directory using s5cmd.
+
+    Files downloaded:
+    - config.json
+    - tokenizer_config.json
+    - tokenizer.json
+    - vocab.json
+    """
+    os.makedirs(local_dir, exist_ok=True)
+    parsed = urlparse(s3_uri)
+    bucket = parsed.netloc
+    prefix = parsed.path.lstrip("/").rstrip("/")
+
+    filenames = [
+        "config.json",
+        "tokenizer_config.json",
+        "tokenizer.json",
+        "vocab.json",
+        "generation_config.json",
+    ]
+
+    for fname in filenames:
+        s3_path = f"s3://{bucket}/{prefix}/{fname}"
+        try:
+            print(f"📥 Downloading {s3_path} → {local_dir}")
+            subprocess.run(["s5cmd", "cp", s3_path, local_dir], check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️ Failed to download {fname}: {e}")
+
 
 def init_tokenizer_from_configs(model_config: ModelConfig,
                                 scheduler_config: SchedulerConfig,
                                 lora_config: Optional[LoRAConfig]):
+    # need to check if model source is coming from s3 and check the local path.
+    # this is because when runai_streamer is used, we get a random tmp path for the model that doesn't contain the config.json
+    if model_config.served_model_name.startswith("s3://"):
+        s3_model_path = model_config.served_model_name
+        local_model_path = model_config.model
+        download_tokenizer_files(s3_model_path, local_model_path)
+
     return TokenizerGroup(
         tokenizer_id=model_config.tokenizer,
         enable_lora=bool(lora_config),
