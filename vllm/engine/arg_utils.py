@@ -1131,14 +1131,17 @@ class EngineArgs:
         device_config = DeviceConfig(
             device=cast(Device, current_platform.device_type))
 
-        (self.model, self.tokenizer,
-         self.speculative_config) = maybe_override_with_speculators(
-             model=self.model,
-             tokenizer=self.tokenizer,
-             revision=self.revision,
-             trust_remote_code=self.trust_remote_code,
-             vllm_speculative_config=self.speculative_config,
-         )
+        try:
+            (self.model, self.tokenizer,
+            self.speculative_config) = maybe_override_with_speculators(
+                model=self.model,
+                tokenizer=self.tokenizer,
+                revision=self.revision,
+                trust_remote_code=self.trust_remote_code,
+                vllm_speculative_config=self.speculative_config,
+            )
+        except Exception as e:
+            print("Error in overriding, skipping:", e)
         model_config = self.create_model_config()
 
         # * If VLLM_USE_V1 is unset, we enable V1 for "supported features"
