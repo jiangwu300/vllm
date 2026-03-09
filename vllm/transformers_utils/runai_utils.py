@@ -59,10 +59,17 @@ class ObjectStorageModel:
                 existing_handler = signal.getsignal(sig)
                 signal.signal(sig, self._close_by_signal(existing_handler))
 
-        dir_name = os.path.join(
+        parent_pid = str(os.getppid())
+        my_pid = str(os.getpid())
+        base_hash = hashlib.sha256(str(url).encode()).hexdigest()[:8]
+        base_dir = os.path.join(
             get_cache_dir(),
-            "model_streamer",
-            hashlib.sha256(str(url).encode()).hexdigest()[:8],
+            "model_streamer"
+        )
+
+        dir_name = os.path.join(
+            base_dir,
+            f"{base_hash}-{parent_pid}-{my_pid}"
         )
         os.makedirs(dir_name, exist_ok=True)
         self.dir = dir_name
